@@ -11,7 +11,7 @@ private:
     glm::vec3 up;
     glm::vec3 right;
     float pitch = 0;
-    float yaw = 0;
+    float yaw = -90;
     glm::mat4 view;
     glm::mat4 projection;
 

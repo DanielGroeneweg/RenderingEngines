@@ -4,12 +4,16 @@
 #include <glm/gtc/quaternion.hpp>
 
 void Camera::MoveCamera(glm::vec3 move) {
-    this->position += move;
+    glm::vec3 relativeMove =
+          move.z * this->forward    // W/S movement
+        + move.x * right            // A/D movement
+        + move.y * this->up;        // Q/E movement
+    this->position += relativeMove;
     this->view = glm::lookAt(this->position, this->position + this->forward, this->up);
 }
 void Camera::RotateCamera(glm::vec2 rotation) {
-    this->yaw = rotation.x;
-    this->pitch = rotation.y;
+    this->yaw += rotation.x;
+    this->pitch += rotation.y;
     pitch = glm::clamp(pitch, -89.0f, 89.0f);
     UpdateCameraVectors();
 

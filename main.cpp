@@ -64,7 +64,7 @@ glm::vec2 CameraRotation(GLFWwindow *window) {
     double xpos, ypos;
     glfwGetCursorPos(window, &xpos, &ypos);
     glm::vec2 newMousePosition = glm::vec2(xpos, ypos);
-    glm::vec2 diff = newMousePosition - lastMousePosition;
+    glm::vec2 diff = glm::vec2(newMousePosition.x - lastMousePosition.x, newMousePosition.y - lastMousePosition.y);
     lastMousePosition = newMousePosition;
 
     return diff;
@@ -200,7 +200,8 @@ int main() {
     double currentTime = glfwGetTime();
     double finishFrameTime = 0.0;
     float deltaTime = 0.0f;
-    float rotationStrength = 100.0f;
+    float rotationStrength = 1.0f;
+
     while (!glfwWindowShouldClose(window)) {
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -241,12 +242,13 @@ int main() {
         float speedMultiplier = 1.0f;
         float speed = deltaTime * speedMultiplier;
         glm::vec3 movement = CameraMovement(window);
-        movement = glm::vec3(movement.x, movement.y, -movement.z);
+        movement = glm::vec3(movement.x, movement.y, movement.z);
         camera.MoveCamera(movement * speed);
 
         glm::vec2 rotation = CameraRotation(window);
         if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_RIGHT)) {
-            camera.RotateCamera(rotation * speed);
+            camera.RotateCamera(glm::vec2(rotation.x, -rotation.y));
+            printf("Rotation: %f, %f\n", camera.GetYaw(), camera.GetPitch());
         }
 
         //VP
