@@ -31,6 +31,7 @@ public:
 
     // Copy
     Camera(const Camera& otherCamera) {
+        printf("Copying camera. Intended??\n");
         this->position = otherCamera.GetPosition();
         this->forward = otherCamera.GetForward();
         this->view = otherCamera.GetViewMatrix();

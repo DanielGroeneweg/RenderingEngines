@@ -6,7 +6,7 @@
 void Camera::MoveCamera(glm::vec3 move) {
     glm::vec3 relativeMove =
           move.z * this->forward    // W/S movement
-        + move.x * right            // A/D movement
+        + move.x * this->right            // A/D movement
         + move.y * this->up;        // Q/E movement
     this->position += relativeMove;
     this->view = glm::lookAt(this->position, this->position + this->forward, this->up);
@@ -31,6 +31,6 @@ void Camera::UpdateCameraVectors() {
     glm::vec3 worldUp = glm::vec3(0.0f, 1.0f, 0.0f);
 
     this->forward = glm::normalize(dir);
-    this->right = glm::normalize(glm::cross(this->forward, worldUp));
-    this->up = glm::normalize(glm::cross(this->right, this->forward));
+    this->right = glm::normalize(glm::cross(worldUp, this->forward));
+    this->up = -glm::normalize(glm::cross(this->right, this->forward));
 }

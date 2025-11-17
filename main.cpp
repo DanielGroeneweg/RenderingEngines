@@ -9,6 +9,7 @@
 #include "core/assimpLoader.h"
 #include "core/texture.h"
 #include "core/Camera.h"
+#include "core/scene.h"
 
 //#define MAC_CLION
 #define VSTUDIO
@@ -34,15 +35,28 @@ void processInput(GLFWwindow *window) {
     if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
         glfwSetWindowShouldClose(window, true);
 }
+int pressed = 0;
+int SceneInput(GLFWwindow *window) {
+    if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS) {
+        if (pressed == 0) {
+            pressed = 1;
+            return 1;
+        }
+    }
+
+    else if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_RELEASE) pressed = 0;
+
+    return 0;
+}
 
 glm::vec3 CameraMovement(GLFWwindow *window) {
     // Camera movement
     glm::vec3 input = glm::vec3(0.0f, 0.0f, 0.0f);
     if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
-        input.x = 1;
+        input.x = -1;
     }
     if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
-        input.x = -1;
+        input.x = 1;
     }
     if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
         input.z = 1;
@@ -181,17 +195,19 @@ int main() {
     quadModel.scale(glm::vec3(5, 5, 1));
 
     core::Model suzanne = core::AssimpLoader::loadModel("models/nonormalmonkey.obj");
+    core::Model suzanne2 = core::AssimpLoader::loadModel("models/nonormalmonkey.obj");
+    core::Model superleggera = core::AssimpLoader::loadModel("models/Superleggera.gltf");
+    superleggera.translate(glm::vec3(-3, 2, 0));
+    superleggera.scale(glm::vec3(3, 3, 3));
     core::Texture cmgtGatoTexture("textures/CMGaTo_crop.png");
 
     glm::vec4 clearColor = glm::vec4(0.2f, 0.2f, 0.2f, 1.0f);
     glClearColor(clearColor.r,
                  clearColor.g, clearColor.b, clearColor.a);
 
-    Camera camera = Camera();
-
     //VP
-    glm::mat4 view = camera.GetViewMatrix();
-    glm::mat4 projection = camera.GetProjectionMatrix(g_width, g_height);
+    glm::mat4 view;
+    glm::mat4 projection;
 
     GLint mvpMatrixUniform = glGetUniformLocation(modelShaderProgram, "mvpMatrix");
     GLint textureModelUniform = glGetUniformLocation(textureShaderProgram, "mvpMatrix");
@@ -200,7 +216,23 @@ int main() {
     double currentTime = glfwGetTime();
     double finishFrameTime = 0.0;
     float deltaTime = 0.0f;
-    float rotationStrength = 1.0f;
+    float rotationStrength = 5.0f;
+
+    // very basic scenes:
+    std::vector<Scene*> sceneList;
+
+    Scene* scene1 = new Scene("Basic Scene");
+    scene1->AddObject(&suzanne);
+    sceneList.push_back(scene1);
+
+    Scene* scene2 = new Scene("Motorcycle Scene");
+    scene2->AddObject(&suzanne2);
+    scene2->AddObject(&superleggera);
+    sceneList.push_back(scene2);
+
+    int sceneIndex = 0;
+    Scene* currentScene = sceneList[sceneIndex];
+    Camera* camera = currentScene->GetCamera();
 
     while (!glfwWindowShouldClose(window)) {
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -213,7 +245,19 @@ int main() {
         ImGui::End();
 
         processInput(window);
-        suzanne.rotate(glm::vec3(0.0f, 1.0f, 0.0f), glm::radians(rotationStrength) * static_cast<float>(deltaTime));
+
+        int shouldSwitch = SceneInput(window);
+        if (shouldSwitch == 1) {
+            sceneIndex++;
+            if (sceneIndex >= 2) sceneIndex = 0;
+
+            currentScene = sceneList[sceneIndex];
+            camera = currentScene->GetCamera();
+            view = camera->GetViewMatrix();
+            projection = camera->GetProjectionMatrix(g_width, g_height);
+        }
+
+        if (currentScene->GetSceneName() == "Basic Scene") suzanne.rotate(glm::vec3(0.0f, 1.0f, 0.0f), glm::radians(rotationStrength) * static_cast<float>(deltaTime));
 
         glUseProgram(textureShaderProgram);
         glUniformMatrix4fv(textureModelUniform, 1, GL_FALSE, glm::value_ptr(projection * view * quadModel.getModelMatrix()));
@@ -224,9 +268,12 @@ int main() {
         glBindVertexArray(0);
         glActiveTexture(GL_TEXTURE0);
 
+
         glUseProgram(modelShaderProgram);
-        glUniformMatrix4fv(mvpMatrixUniform, 1, GL_FALSE, glm::value_ptr(projection * view * suzanne.getModelMatrix()));
-        suzanne.render();
+        for (core::Model* model : currentScene->GetObjects()) {
+            glUniformMatrix4fv(mvpMatrixUniform, 1, GL_FALSE, glm::value_ptr(projection * view * model->getModelMatrix()));
+            model->render();
+        }
         glBindVertexArray(0);
 
         ImGui::Render();
@@ -239,21 +286,25 @@ int main() {
         currentTime = finishFrameTime;
 
         //Camera Control
-        float speedMultiplier = 1.0f;
+        float speedMultiplier = 2.0f;
         float speed = deltaTime * speedMultiplier;
         glm::vec3 movement = CameraMovement(window);
         movement = glm::vec3(movement.x, movement.y, movement.z);
-        camera.MoveCamera(movement * speed);
+        camera->MoveCamera(movement * speed);
 
         glm::vec2 rotation = CameraRotation(window);
         if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_RIGHT)) {
-            camera.RotateCamera(glm::vec2(rotation.x, -rotation.y));
-            printf("Rotation: %f, %f\n", camera.GetYaw(), camera.GetPitch());
+            camera->RotateCamera(glm::vec2(rotation.x, -rotation.y));
+            //printf("Rotation: %f, %f\n", camera.GetYaw(), camera.GetPitch());
         }
 
         //VP
-        view = camera.GetViewMatrix();
-        projection = camera.GetProjectionMatrix(static_cast<float>(g_width), static_cast<float>(g_height));
+        view = camera->GetViewMatrix();
+        projection = camera->GetProjectionMatrix(static_cast<float>(g_width), static_cast<float>(g_height));
+    }
+
+    for (Scene* s : sceneList) {
+        delete s;
     }
 
     glDeleteProgram(modelShaderProgram);
