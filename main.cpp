@@ -196,10 +196,11 @@ int main() {
 
     core::Model suzanne = core::AssimpLoader::loadModel("models/nonormalmonkey.obj");
     core::Model suzanne2 = core::AssimpLoader::loadModel("models/nonormalmonkey.obj");
-    core::Model superleggera = core::AssimpLoader::loadModel("models/Superleggera.gltf");
+    core::Model superleggera = core::AssimpLoader::loadModel("models/superleggera.gltf");
     superleggera.translate(glm::vec3(-3, 2, 0));
     superleggera.scale(glm::vec3(3, 3, 3));
     core::Texture cmgtGatoTexture("textures/CMGaTo_crop.png");
+    core::Texture texture("textures/object_65_baseColor.png");
 
     glm::vec4 clearColor = glm::vec4(0.2f, 0.2f, 0.2f, 1.0f);
     glClearColor(clearColor.r,
@@ -211,7 +212,8 @@ int main() {
 
     GLint mvpMatrixUniform = glGetUniformLocation(modelShaderProgram, "mvpMatrix");
     GLint textureModelUniform = glGetUniformLocation(textureShaderProgram, "mvpMatrix");
-    GLint textureUniform = glGetUniformLocation(textureShaderProgram, "text");
+    GLint texture0Uniform = glGetUniformLocation(textureShaderProgram, "text");
+    GLint texture1Uniform = glGetUniformLocation(textureShaderProgram, "text");
 
     double currentTime = glfwGetTime();
     double finishFrameTime = 0.0;
@@ -259,22 +261,29 @@ int main() {
 
         if (currentScene->GetSceneName() == "Basic Scene") suzanne.rotate(glm::vec3(0.0f, 1.0f, 0.0f), glm::radians(rotationStrength) * static_cast<float>(deltaTime));
 
+        //glBindTexture(GL_TEXTURE_2D, texture.getId());
+
         glUseProgram(textureShaderProgram);
         glUniformMatrix4fv(textureModelUniform, 1, GL_FALSE, glm::value_ptr(projection * view * quadModel.getModelMatrix()));
         glActiveTexture(GL_TEXTURE0);
-        glUniform1i(textureUniform, 0);
+        glUniform1i(texture0Uniform, 0);
         glBindTexture(GL_TEXTURE_2D, cmgtGatoTexture.getId());
+
         quadModel.render();
         glBindVertexArray(0);
-        glActiveTexture(GL_TEXTURE0);
 
+        glActiveTexture(GL_TEXTURE1);
+        glUniform1i(texture1Uniform, 1);
+        glBindTexture(GL_TEXTURE_2D, texture.getId());
 
         glUseProgram(modelShaderProgram);
         for (core::Model* model : currentScene->GetObjects()) {
+            if (model == &superleggera) glUseProgram(textureShaderProgram);
+            else glUseProgram(modelShaderProgram);
+
             glUniformMatrix4fv(mvpMatrixUniform, 1, GL_FALSE, glm::value_ptr(projection * view * model->getModelMatrix()));
             model->render();
         }
-        glBindVertexArray(0);
 
         ImGui::Render();
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
@@ -295,7 +304,6 @@ int main() {
         glm::vec2 rotation = CameraRotation(window);
         if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_RIGHT)) {
             camera->RotateCamera(glm::vec2(rotation.x, -rotation.y));
-            //printf("Rotation: %f, %f\n", camera.GetYaw(), camera.GetPitch());
         }
 
         //VP
@@ -303,8 +311,8 @@ int main() {
         projection = camera->GetProjectionMatrix(static_cast<float>(g_width), static_cast<float>(g_height));
     }
 
-    for (Scene* s : sceneList) {
-        delete s;
+    for (Scene* scene : sceneList) {
+        delete scene;
     }
 
     glDeleteProgram(modelShaderProgram);

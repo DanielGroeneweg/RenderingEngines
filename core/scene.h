@@ -18,10 +18,21 @@ public:
     }
 
     // Copy
-    Scene(const Scene& otherScene) = delete;
+    Scene(const Scene& otherScene) {
+        this-> sceneName = otherScene.GetSceneName();
+        this-> objects = otherScene.GetObjects();
+        this-> camera = otherScene.camera;
+    }
 
     // Overload
-    Scene& operator=(const Scene& otherScene) = delete;
+    Scene& operator=(const Scene& otherScene) {
+        if (this != &otherScene) {
+            this-> sceneName = otherScene.GetSceneName();
+            this-> objects = otherScene.GetObjects();
+            this-> camera = (otherScene.camera);
+        }
+        return *this;
+    }
 
     // Destructor
     ~Scene() {
