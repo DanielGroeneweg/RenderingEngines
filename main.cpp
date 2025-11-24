@@ -163,6 +163,8 @@ int main() {
     const GLuint modelVertexShader = generateShader("shaders/modelVertex.vs", GL_VERTEX_SHADER);
     const GLuint fragmentShader = generateShader("shaders/fragment.fs", GL_FRAGMENT_SHADER);
     const GLuint textureShader = generateShader("shaders/texture.fs", GL_FRAGMENT_SHADER);
+    const GLuint lightFragmentShader = generateShader("shaders/lightFragment.fs", GL_FRAGMENT_SHADER);
+    const GLuint lightVertexShader = generateShader("shaders/lightVertex.vs", GL_VERTEX_SHADER);
 
     int success;
     char infoLog[512];
@@ -184,10 +186,24 @@ int main() {
         glGetProgramInfoLog(textureShaderProgram, 512, NULL, infoLog);
         printf("Error! Making Shader Program: %s\n", infoLog);
     }
+    const unsigned int lightShaderProgram = glCreateProgram();
+    glAttachShader(lightShaderProgram, lightVertexShader);
+    glAttachShader(lightShaderProgram, lightFragmentShader);
+    glLinkProgram(lightShaderProgram);
+    glGetProgramiv(lightShaderProgram, GL_LINK_STATUS, &success);
+    if (!success) {
+        glGetProgramInfoLog(lightShaderProgram, 512, NULL, infoLog);
+        printf("Error! Making Shader Program: %s\n", infoLog);
+    }
+    GLint lightModelLoc = glGetUniformLocation(lightShaderProgram, "model");
+    GLint lightViewLoc = glGetUniformLocation(lightShaderProgram, "view");
+    GLint lightProjLoc = glGetUniformLocation(lightShaderProgram, "projection");
 
     glDeleteShader(modelVertexShader);
     glDeleteShader(fragmentShader);
     glDeleteShader(textureShader);
+    glDeleteShader(lightVertexShader);
+    glDeleteShader(lightFragmentShader);
 
     core::Mesh quad = core::Mesh::generateQuad();
     core::Model quadModel({quad});
@@ -259,6 +275,11 @@ int main() {
             projection = camera->GetProjectionMatrix(g_width, g_height);
         }
 
+        glUseProgram(lightShaderProgram);
+
+        glUniformMatrix4fv(lightViewLoc, 1, GL_FALSE, glm::value_ptr(view));
+        glUniformMatrix4fv(lightProjLoc, 1, GL_FALSE, glm::value_ptr(projection));
+
         if (currentScene->GetSceneName() == "Basic Scene") suzanne.rotate(glm::vec3(0.0f, 1.0f, 0.0f), glm::radians(rotationStrength) * static_cast<float>(deltaTime));
 
         //glBindTexture(GL_TEXTURE_2D, texture.getId());
@@ -277,10 +298,48 @@ int main() {
         glBindTexture(GL_TEXTURE_2D, texture.getId());
 
         glUseProgram(modelShaderProgram);
-        for (core::Model* model : currentScene->GetObjects()) {
-            if (model == &superleggera) glUseProgram(textureShaderProgram);
-            else glUseProgram(modelShaderProgram);
+        for (core::Model* model : currentScene->GetObjects())
+        {
+            unsigned int currentShader = 0;
 
+            if (model == &superleggera) {
+                glUseProgram(textureShaderProgram);
+                currentShader = textureShaderProgram;
+            }
+            else if (model == &suzanne || model == &suzanne2) {
+                glUseProgram(lightShaderProgram);
+                currentShader = lightShaderProgram;
+                glm::vec3 lightPos = glm::vec3(3.0f, 4.0f, 2.0f);   // example
+                glm::vec3 lightColor = glm::vec3(1.0f, 1.0f, 1.0f); // white
+                glm::vec3 cameraPos = camera->GetPosition();  // from your camera
+
+                GLint lightPosLoc   = glGetUniformLocation(lightShaderProgram, "lightPos");
+                GLint lightColorLoc = glGetUniformLocation(lightShaderProgram, "lightColor");
+                GLint cameraPosLoc  = glGetUniformLocation(lightShaderProgram, "cameraPos");
+
+                glUniform3fv(lightPosLoc,   1, glm::value_ptr(lightPos));
+                glUniform3fv(lightColorLoc, 1, glm::value_ptr(lightColor));
+                glUniform3fv(cameraPosLoc,  1, glm::value_ptr(cameraPos));
+            }
+            else {
+                glUseProgram(modelShaderProgram);
+                currentShader = modelShaderProgram;
+            }
+
+            glm::mat4 modelMatrix = model->getModelMatrix();
+
+            if (currentShader == lightShaderProgram)
+            {
+                glUniformMatrix4fv(lightModelLoc, 1, GL_FALSE, glm::value_ptr(modelMatrix));
+            }
+            else if (currentShader == modelShaderProgram)
+            {
+                glUniformMatrix4fv(mvpMatrixUniform, 1, GL_FALSE, glm::value_ptr(projection * view * model->getModelMatrix()));
+            }
+            else if (currentShader == textureShaderProgram)
+            {
+                glUniformMatrix4fv(mvpMatrixUniform, 1, GL_FALSE, glm::value_ptr(projection * view * model->getModelMatrix()));
+            }
             glUniformMatrix4fv(mvpMatrixUniform, 1, GL_FALSE, glm::value_ptr(projection * view * model->getModelMatrix()));
             model->render();
         }
