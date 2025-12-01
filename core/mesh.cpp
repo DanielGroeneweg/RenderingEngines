@@ -62,6 +62,32 @@ namespace core {
         return Mesh(vertexVector, indices);
     }
 
+    Mesh Mesh::generateScreenQuad() {
+        float quadVerts[] = {
+            // positions   // texcoords
+            -1.0f,  1.0f,   0.0f, 1.0f,
+            -1.0f, -1.0f,   0.0f, 0.0f,
+             1.0f, -1.0f,   1.0f, 0.0f,
+
+            -1.0f,  1.0f,   0.0f, 1.0f,
+             1.0f, -1.0f,   1.0f, 0.0f,
+             1.0f,  1.0f,   1.0f, 1.0f
+        };
+
+        std::vector<Vertex> v;
+        v.reserve(6);
+
+        for (int i = 0; i < 6; ++i) {
+            glm::vec3 p(quadVerts[i*4+0], quadVerts[i*4+1], 0);
+            glm::vec3 n(0,0,1);
+            glm::vec2 uv(quadVerts[i*4+2], quadVerts[i*4+3]);
+            v.emplace_back(p, n, uv);
+        }
+
+        std::vector<GLuint> idx = {0,1,2,3,4,5};
+        return Mesh(v, idx);
+    }
+
     void Mesh::render() {
         glBindVertexArray(VAO);
         glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(indices.size()), GL_UNSIGNED_INT, 0);

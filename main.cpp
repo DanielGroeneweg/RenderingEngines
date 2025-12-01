@@ -5,6 +5,8 @@
 #include <fstream>
 #include <sstream>
 #include <algorithm>
+#include <iostream>
+
 #include "core/mesh.h"
 #include "core/assimpLoader.h"
 #include "core/texture.h"
@@ -160,41 +162,91 @@ int main() {
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
+    //framebuffers
+    unsigned int framebuffer;
+    unsigned int textureColorbuffer;
+    unsigned int rbo;
+    {
+        glGenFramebuffers(1, &framebuffer);
+        glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
+
+        // generate texture
+        glGenTextures(1, &textureColorbuffer);
+        glBindTexture(GL_TEXTURE_2D, textureColorbuffer);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, 800, 600, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR );
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glBindTexture(GL_TEXTURE_2D, 0);
+
+        // attach it to currently bound framebuffer object
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, textureColorbuffer, 0);
+
+        glGenRenderbuffers(1, &rbo);
+        glBindRenderbuffer(GL_RENDERBUFFER, rbo);
+        glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, 800, 600);
+        glBindRenderbuffer(GL_RENDERBUFFER, 0);
+
+        glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, rbo);
+
+        if(glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+            std::cout << "ERROR::FRAMEBUFFER:: Framebuffer is not complete!" << std::endl;
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    }
+
     const GLuint modelVertexShader = generateShader("shaders/modelVertex.vs", GL_VERTEX_SHADER);
     const GLuint fragmentShader = generateShader("shaders/fragment.fs", GL_FRAGMENT_SHADER);
     const GLuint textureShader = generateShader("shaders/texture.fs", GL_FRAGMENT_SHADER);
     const GLuint lightFragmentShader = generateShader("shaders/lightFragment.fs", GL_FRAGMENT_SHADER);
     const GLuint lightVertexShader = generateShader("shaders/lightVertex.vs", GL_VERTEX_SHADER);
+    const GLuint invertFragmentShader = generateShader("shaders/ColorInversion.fs", GL_FRAGMENT_SHADER);
+    const GLuint screenQuadVertexShader = generateShader("shaders/ScreenQuad.vs", GL_VERTEX_SHADER);
+    const GLuint vertexShader = generateShader("shaders/vertex.vs", GL_VERTEX_SHADER);
 
     int success;
     char infoLog[512];
     const unsigned int modelShaderProgram = glCreateProgram();
-    glAttachShader(modelShaderProgram, modelVertexShader);
-    glAttachShader(modelShaderProgram, fragmentShader);
-    glLinkProgram(modelShaderProgram);
-    glGetProgramiv(modelShaderProgram, GL_LINK_STATUS, &success);
-    if (!success) {
-        glGetProgramInfoLog(modelShaderProgram, 512, NULL, infoLog);
-        printf("Error! Making Shader Program: %s\n", infoLog);
-    }
     const unsigned int textureShaderProgram = glCreateProgram();
-    glAttachShader(textureShaderProgram, modelVertexShader);
-    glAttachShader(textureShaderProgram, textureShader);
-    glLinkProgram(textureShaderProgram);
-    glGetProgramiv(textureShaderProgram, GL_LINK_STATUS, &success);
-    if (!success) {
-        glGetProgramInfoLog(textureShaderProgram, 512, NULL, infoLog);
-        printf("Error! Making Shader Program: %s\n", infoLog);
-    }
     const unsigned int lightShaderProgram = glCreateProgram();
-    glAttachShader(lightShaderProgram, lightVertexShader);
-    glAttachShader(lightShaderProgram, lightFragmentShader);
-    glLinkProgram(lightShaderProgram);
-    glGetProgramiv(lightShaderProgram, GL_LINK_STATUS, &success);
-    if (!success) {
-        glGetProgramInfoLog(lightShaderProgram, 512, NULL, infoLog);
-        printf("Error! Making Shader Program: %s\n", infoLog);
+    const unsigned int invertProgram = glCreateProgram();
+    // shader loading happens here:
+    {
+        glAttachShader(modelShaderProgram, modelVertexShader);
+        glAttachShader(modelShaderProgram, fragmentShader);
+        glLinkProgram(modelShaderProgram);
+        glGetProgramiv(modelShaderProgram, GL_LINK_STATUS, &success);
+        if (!success) {
+            glGetProgramInfoLog(modelShaderProgram, 512, NULL, infoLog);
+            printf("Error! Making Shader Program: %s\n", infoLog);
+        }
+
+        glAttachShader(textureShaderProgram, screenQuadVertexShader);
+        glAttachShader(textureShaderProgram, textureShader);
+        glLinkProgram(textureShaderProgram);
+        glGetProgramiv(textureShaderProgram, GL_LINK_STATUS, &success);
+        if (!success) {
+            glGetProgramInfoLog(textureShaderProgram, 512, NULL, infoLog);
+            printf("Error! Making Shader Program: %s\n", infoLog);
+        }
+
+        glAttachShader(lightShaderProgram, lightVertexShader);
+        glAttachShader(lightShaderProgram, lightFragmentShader);
+        glLinkProgram(lightShaderProgram);
+        glGetProgramiv(lightShaderProgram, GL_LINK_STATUS, &success);
+        if (!success) {
+            glGetProgramInfoLog(lightShaderProgram, 512, NULL, infoLog);
+            printf("Error! Making Shader Program: %s\n", infoLog);
+        }
+
+        glAttachShader(invertProgram, vertexShader);
+        glAttachShader(invertProgram, invertFragmentShader);
+        glLinkProgram(invertProgram);
+        glGetProgramiv(invertProgram, GL_LINK_STATUS, &success);
+        if (!success) {
+            glGetProgramInfoLog(invertProgram, 512, NULL, infoLog);
+            printf("Error! Making Shader Program: %s\n", infoLog);
+        }
     }
+
     GLint lightModelLoc = glGetUniformLocation(lightShaderProgram, "model");
     GLint lightViewLoc = glGetUniformLocation(lightShaderProgram, "view");
     GLint lightProjLoc = glGetUniformLocation(lightShaderProgram, "projection");
@@ -204,11 +256,16 @@ int main() {
     glDeleteShader(textureShader);
     glDeleteShader(lightVertexShader);
     glDeleteShader(lightFragmentShader);
+    glDeleteShader(invertFragmentShader);
+    glDeleteShader(screenQuadVertexShader);
+    glDeleteShader(vertexShader);
 
     core::Mesh quad = core::Mesh::generateQuad();
     core::Model quadModel({quad});
     quadModel.translate(glm::vec3(0,0,-2.5));
     quadModel.scale(glm::vec3(5, 5, 1));
+
+    core::Mesh screenQuadMesh = core::Mesh::generateScreenQuad();
 
     core::Model suzanne = core::AssimpLoader::loadModel("models/nonormalmonkey.obj");
     core::Model suzanne2 = core::AssimpLoader::loadModel("models/nonormalmonkey.obj");
@@ -227,6 +284,7 @@ int main() {
     glm::mat4 projection;
 
     GLint mvpMatrixUniform = glGetUniformLocation(modelShaderProgram, "mvpMatrix");
+    GLint modelMatrixUniform = glGetUniformLocation(modelShaderProgram, "modelMatrix");
     GLint textureModelUniform = glGetUniformLocation(textureShaderProgram, "mvpMatrix");
     GLint texture0Uniform = glGetUniformLocation(textureShaderProgram, "text");
     GLint texture1Uniform = glGetUniformLocation(textureShaderProgram, "text");
@@ -252,6 +310,16 @@ int main() {
     Scene* currentScene = sceneList[sceneIndex];
     Camera* camera = currentScene->GetCamera();
 
+    // IMGui:
+    glm::vec3 lightColor = glm::vec3(1.0f, 1.0f, 1.0f);
+    glm::vec3 lightPos = glm::vec3(3.0f, 4.0f, 2.0f);
+    glm::vec3 ambientColor = glm::vec3(0.2f, 0.2f, 0.2f);
+    float lightStrength = 5.0f;
+    float ambientStrength = 0.1f;
+    float specularStrength = 0.5f;
+    float cameraSpeed = 2.0f;
+    bool invertEffect = false;
+
     while (!glfwWindowShouldClose(window)) {
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -259,7 +327,15 @@ int main() {
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
         ImGui::Begin("Raw Engine v2");
-        ImGui::Text("Hello :)");
+        //ImGui::Text("Hello :)");
+        ImGui::SliderFloat3("Light color", &lightColor[0],0,1);
+        ImGui::SliderFloat("Light Strength", &lightStrength, 0, 10);
+        ImGui::SliderFloat3("Light Position", &lightPos[0],-10, 10);
+        ImGui::SliderFloat3("Ambient Color", &ambientColor[0],0,1);
+        ImGui::SliderFloat("Ambient Strength", &ambientStrength, 0, 1);
+        ImGui::SliderFloat("Specular Strength", &specularStrength, 0, 1);
+        ImGui::SliderFloat("Camera Speed", &cameraSpeed, 0, 10);
+        ImGui::Checkbox("Invert Colors", &invertEffect);
         ImGui::End();
 
         processInput(window);
@@ -284,15 +360,24 @@ int main() {
 
         //glBindTexture(GL_TEXTURE_2D, texture.getId());
 
-        glUseProgram(textureShaderProgram);
-        glUniformMatrix4fv(textureModelUniform, 1, GL_FALSE, glm::value_ptr(projection * view * quadModel.getModelMatrix()));
-        glActiveTexture(GL_TEXTURE0);
-        glUniform1i(texture0Uniform, 0);
-        glBindTexture(GL_TEXTURE_2D, cmgtGatoTexture.getId());
+        {
+            /*
+            glUseProgram(textureShaderProgram);
+            glUniformMatrix4fv(textureModelUniform, 1, GL_FALSE, glm::value_ptr(projection * view * quadModel.getModelMatrix()));
+            glActiveTexture(GL_TEXTURE0);
+            glUniform1i(texture0Uniform, 0);
+            glBindTexture(GL_TEXTURE_2D, cmgtGatoTexture.getId());
 
-        quadModel.render();
-        glBindVertexArray(0);
+            quadModel.render();
+            glBindVertexArray(0);
+            */
+        }
 
+        glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
+        glEnable(GL_DEPTH_TEST);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+        // Scene stuff
         glActiveTexture(GL_TEXTURE1);
         glUniform1i(texture1Uniform, 1);
         glBindTexture(GL_TEXTURE_2D, texture.getId());
@@ -309,17 +394,25 @@ int main() {
             else if (model == &suzanne || model == &suzanne2) {
                 glUseProgram(lightShaderProgram);
                 currentShader = lightShaderProgram;
-                glm::vec3 lightPos = glm::vec3(3.0f, 4.0f, 2.0f);   // example
-                glm::vec3 lightColor = glm::vec3(1.0f, 1.0f, 1.0f); // white
+                //glm::vec3 lightPos = glm::vec3(3.0f, 4.0f, 2.0f);   // example
+                //glm::vec3 lightColor = glm::vec3(1.0f, 1.0f, 1.0f); // white
                 glm::vec3 cameraPos = camera->GetPosition();  // from your camera
 
                 GLint lightPosLoc   = glGetUniformLocation(lightShaderProgram, "lightPos");
                 GLint lightColorLoc = glGetUniformLocation(lightShaderProgram, "lightColor");
                 GLint cameraPosLoc  = glGetUniformLocation(lightShaderProgram, "cameraPos");
+                GLint lightStrengthLoc = glGetUniformLocation(lightShaderProgram, "lightStrength");
+                GLint ambientLightColorLoc = glGetUniformLocation(lightShaderProgram, "ambientLightColor");
+                GLint ambientLightStrengthLoc = glGetUniformLocation(lightShaderProgram, "ambientLightStrength");
+                GLint specularStrengthLocation = glGetUniformLocation(lightShaderProgram, "specularStrength");
 
                 glUniform3fv(lightPosLoc,   1, glm::value_ptr(lightPos));
                 glUniform3fv(lightColorLoc, 1, glm::value_ptr(lightColor));
                 glUniform3fv(cameraPosLoc,  1, glm::value_ptr(cameraPos));
+                glUniform3fv(ambientLightColorLoc, 1, glm::value_ptr(ambientColor));
+                glUniform1f(lightStrengthLoc, lightStrength);
+                glUniform1f(ambientLightStrengthLoc, ambientStrength);
+                glUniform1f(specularStrengthLocation, specularStrength);
             }
             else {
                 glUseProgram(modelShaderProgram);
@@ -335,6 +428,7 @@ int main() {
             else if (currentShader == modelShaderProgram)
             {
                 glUniformMatrix4fv(mvpMatrixUniform, 1, GL_FALSE, glm::value_ptr(projection * view * model->getModelMatrix()));
+                glUniformMatrix4fv(modelMatrixUniform, 1, GL_FALSE, glm::value_ptr(model->getModelMatrix()));
             }
             else if (currentShader == textureShaderProgram)
             {
@@ -343,6 +437,20 @@ int main() {
             glUniformMatrix4fv(mvpMatrixUniform, 1, GL_FALSE, glm::value_ptr(projection * view * model->getModelMatrix()));
             model->render();
         }
+
+        glBindFramebuffer(GL_FRAMEBUFFER, 0); // 2️⃣ switch to default framebuffer
+        glDisable(GL_DEPTH_TEST);             // 3️⃣ depth not needed for full-screen quad
+        glClear(GL_COLOR_BUFFER_BIT);
+
+        // 4️⃣ Bind FBO color texture
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, textureColorbuffer);
+        glUseProgram(invertProgram);
+        glUniform1i(texture0Uniform, 0);
+        glUniform1i(glGetUniformLocation(invertProgram, "invertColors"), invertEffect ? 1 : 0);
+
+        // 5️⃣ Render screen quad
+        screenQuadMesh.render();
 
         ImGui::Render();
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
@@ -354,8 +462,7 @@ int main() {
         currentTime = finishFrameTime;
 
         //Camera Control
-        float speedMultiplier = 2.0f;
-        float speed = deltaTime * speedMultiplier;
+        float speed = deltaTime * cameraSpeed;
         glm::vec3 movement = CameraMovement(window);
         movement = glm::vec3(movement.x, movement.y, movement.z);
         camera->MoveCamera(movement * speed);
@@ -373,12 +480,23 @@ int main() {
     for (Scene* scene : sceneList) {
         delete scene;
     }
-
+    // cleanup shaders
+    glDeleteProgram(lightShaderProgram);
+    glDeleteProgram(textureShaderProgram);
     glDeleteProgram(modelShaderProgram);
+    glDeleteProgram(invertProgram);
+
+    // cleanup framebuffer resources
+    glDeleteFramebuffers(1, &framebuffer);
+    glDeleteTextures(1, &textureColorbuffer);
+    glDeleteRenderbuffers(1, &rbo);
+
+    // cleanup imgui
     ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplGlfw_Shutdown();
     ImGui::DestroyContext();
 
+    // terminate
     glfwTerminate();
     return 0;
 }
