@@ -163,33 +163,119 @@ int main() {
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
     //framebuffers
-    unsigned int framebuffer;
-    unsigned int textureColorbuffer;
-    unsigned int rbo;
+    unsigned int sceneFBO;
+    unsigned int sceneColor;
+    unsigned int sceneRBO;
+
+    unsigned int postFBO;
+    unsigned int postColor;
+
+    unsigned int postFBO2;
+    unsigned int postColor2;
+
+    // Bloom
+    unsigned int bloomFBO1;
+    unsigned int bloomColor;
+
+    unsigned int blurFBO[2];
+    unsigned int blurColor[2];
+
+    int width = g_width;
+    int height = g_height;
     {
-        glGenFramebuffers(1, &framebuffer);
-        glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
+        // Scene framebuffer
+        glGenFramebuffers(1, &sceneFBO);
+        glBindFramebuffer(GL_FRAMEBUFFER, sceneFBO);
 
-        // generate texture
-        glGenTextures(1, &textureColorbuffer);
-        glBindTexture(GL_TEXTURE_2D, textureColorbuffer);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, 800, 600, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR );
+        glGenTextures(1, &sceneColor);
+        glBindTexture(GL_TEXTURE_2D, sceneColor);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F,
+                     width, height, 0, GL_RGBA, GL_FLOAT, nullptr);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-        glBindTexture(GL_TEXTURE_2D, 0);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
+                               GL_TEXTURE_2D, sceneColor, 0);
 
-        // attach it to currently bound framebuffer object
-        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, textureColorbuffer, 0);
+        // Depth + stencil
+        glGenRenderbuffers(1, &sceneRBO);
+        glBindRenderbuffer(GL_RENDERBUFFER, sceneRBO);
+        glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8,
+                              width, height);
+        glFramebufferRenderbuffer(GL_FRAMEBUFFER,
+                                  GL_DEPTH_STENCIL_ATTACHMENT,
+                                  GL_RENDERBUFFER, sceneRBO);
 
-        glGenRenderbuffers(1, &rbo);
-        glBindRenderbuffer(GL_RENDERBUFFER, rbo);
-        glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, 800, 600);
-        glBindRenderbuffer(GL_RENDERBUFFER, 0);
+        if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+            std::cout << "ERROR:: Scene framebuffer incomplete\n";
 
-        glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, rbo);
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
-        if(glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
-            std::cout << "ERROR::FRAMEBUFFER:: Framebuffer is not complete!" << std::endl;
+        // Bright-pass framebuffer
+        glGenFramebuffers(1, &bloomFBO1);
+        glBindFramebuffer(GL_FRAMEBUFFER, bloomFBO1);
+
+        glGenTextures(1, &bloomColor);
+        glBindTexture(GL_TEXTURE_2D, bloomColor);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F,
+                     width, height, 0, GL_RGBA, GL_FLOAT, nullptr);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
+                               GL_TEXTURE_2D, bloomColor, 0);
+
+        if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+            std::cout << "ERROR:: Bloom framebuffer incomplete\n";
+
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+        // Blur ping-pong buffers
+        glGenFramebuffers(2, blurFBO);
+        glGenTextures(2, blurColor);
+
+        for (int i = 0; i < 2; i++)
+        {
+            glBindFramebuffer(GL_FRAMEBUFFER, blurFBO[i]);
+
+            glBindTexture(GL_TEXTURE_2D, blurColor[i]);
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F,
+                         width, height, 0, GL_RGBA, GL_FLOAT, nullptr);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+            glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
+                                   GL_TEXTURE_2D, blurColor[i], 0);
+
+            if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+                std::cout << "ERROR:: Blur framebuffer " << i << " incomplete\n";
+        }
+
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+        // Post-process framebuffer
+        glGenFramebuffers(1, &postFBO);
+        glBindFramebuffer(GL_FRAMEBUFFER, postFBO);
+
+        glGenTextures(1, &postColor);
+        glBindTexture(GL_TEXTURE_2D, postColor);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F,
+                     width, height, 0, GL_RGBA, GL_FLOAT, nullptr);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
+                               GL_TEXTURE_2D, postColor, 0);
+
+        if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+            std::cout << "ERROR:: Post-process framebuffer incomplete\n";
+
+        glGenFramebuffers(1, &postFBO2);
+        glBindFramebuffer(GL_FRAMEBUFFER, postFBO2);
+
+        glGenTextures(1, &postColor2);
+        glBindTexture(GL_TEXTURE_2D, postColor2);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, width, height, 0, GL_RGBA, GL_FLOAT, nullptr);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, postColor2, 0);
+
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
     }
 
@@ -201,6 +287,10 @@ int main() {
     const GLuint invertFragmentShader = generateShader("shaders/ColorInversion.fs", GL_FRAGMENT_SHADER);
     const GLuint screenQuadVertexShader = generateShader("shaders/ScreenQuad.vs", GL_VERTEX_SHADER);
     const GLuint vertexShader = generateShader("shaders/vertex.vs", GL_VERTEX_SHADER);
+    const GLuint pixelFragmentShader = generateShader("shaders/pixelFragment.fs", GL_FRAGMENT_SHADER);
+    const GLuint bloomExtractShader = generateShader("shaders/bloomExtract.fs", GL_FRAGMENT_SHADER);
+    const GLuint blurShader = generateShader("shaders/blur.fs", GL_FRAGMENT_SHADER);
+    const GLuint bloomCombineShader = generateShader("shaders/bloomCombine.fs", GL_FRAGMENT_SHADER);
 
     int success;
     char infoLog[512];
@@ -208,6 +298,10 @@ int main() {
     const unsigned int textureShaderProgram = glCreateProgram();
     const unsigned int lightShaderProgram = glCreateProgram();
     const unsigned int invertProgram = glCreateProgram();
+    const unsigned int pixelateProgram = glCreateProgram();
+    const unsigned int bloomExtractProgram = glCreateProgram();
+    const unsigned int blurProgram = glCreateProgram();
+    const unsigned int bloomCombineProgram = glCreateProgram();
     // shader loading happens here:
     {
         glAttachShader(modelShaderProgram, modelVertexShader);
@@ -219,7 +313,7 @@ int main() {
             printf("Error! Making Shader Program: %s\n", infoLog);
         }
 
-        glAttachShader(textureShaderProgram, screenQuadVertexShader);
+        glAttachShader(textureShaderProgram, modelVertexShader);
         glAttachShader(textureShaderProgram, textureShader);
         glLinkProgram(textureShaderProgram);
         glGetProgramiv(textureShaderProgram, GL_LINK_STATUS, &success);
@@ -245,11 +339,49 @@ int main() {
             glGetProgramInfoLog(invertProgram, 512, NULL, infoLog);
             printf("Error! Making Shader Program: %s\n", infoLog);
         }
+
+        glAttachShader(pixelateProgram, vertexShader);
+        glAttachShader(pixelateProgram, pixelFragmentShader);
+        glLinkProgram(pixelateProgram);
+        glGetProgramiv(pixelateProgram, GL_LINK_STATUS, &success);
+        if (!success) {
+            glGetProgramInfoLog(pixelateProgram, 512, NULL, infoLog);
+            printf("Error! Making Shader Program: %s\n", infoLog);
+        }
+
+        glAttachShader(bloomExtractProgram, vertexShader);
+        glAttachShader(bloomExtractProgram, bloomExtractShader);
+        glLinkProgram(bloomExtractProgram);
+        glGetProgramiv(bloomExtractProgram, GL_LINK_STATUS, &success);
+        if (!success) {
+            glGetProgramInfoLog(bloomExtractProgram, 512, NULL, infoLog);
+            printf("Error! Making Shader Program: %s\n", infoLog);
+        }
+
+        glAttachShader(blurProgram, vertexShader);
+        glAttachShader(blurProgram, blurShader);
+        glLinkProgram(blurProgram);
+        glGetProgramiv(blurProgram, GL_LINK_STATUS, &success);
+        if (!success) {
+            glGetProgramInfoLog(blurProgram, 512, NULL, infoLog);
+            printf("Error! Making Shader Program: %s\n", infoLog);
+        }
+
+        glAttachShader(bloomCombineProgram, vertexShader);
+        glAttachShader(bloomCombineProgram, bloomCombineShader);
+        glLinkProgram(bloomCombineProgram);
+        glGetProgramiv(bloomCombineProgram, GL_LINK_STATUS, &success);
+        if (!success) {
+            glGetProgramInfoLog(bloomCombineProgram, 512, NULL, infoLog);
+            printf("Error! Making Shader Program: %s\n", infoLog);
+        }
     }
 
     GLint lightModelLoc = glGetUniformLocation(lightShaderProgram, "model");
     GLint lightViewLoc = glGetUniformLocation(lightShaderProgram, "view");
     GLint lightProjLoc = glGetUniformLocation(lightShaderProgram, "projection");
+    GLint tex_mvp_loc = glGetUniformLocation(textureShaderProgram, "mvpMatrix");
+    GLint tex_sampler_loc = glGetUniformLocation(textureShaderProgram, "text");
 
     glDeleteShader(modelVertexShader);
     glDeleteShader(fragmentShader);
@@ -259,6 +391,10 @@ int main() {
     glDeleteShader(invertFragmentShader);
     glDeleteShader(screenQuadVertexShader);
     glDeleteShader(vertexShader);
+    glDeleteShader(pixelFragmentShader);
+    glDeleteShader(bloomExtractShader);
+    glDeleteShader(bloomCombineShader);
+    glDeleteShader(blurShader);
 
     core::Mesh quad = core::Mesh::generateQuad();
     core::Model quadModel({quad});
@@ -319,6 +455,12 @@ int main() {
     float specularStrength = 0.5f;
     float cameraSpeed = 2.0f;
     bool invertEffect = false;
+    bool pixelateEffect = false;
+    int pixelSize = 10;
+    bool bloom = false;
+    float bloomThreshold = 1.0f;
+    float bloomStrength = 0.8f;
+    float blurRadius = 1.0f;
 
     while (!glfwWindowShouldClose(window)) {
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -336,6 +478,12 @@ int main() {
         ImGui::SliderFloat("Specular Strength", &specularStrength, 0, 1);
         ImGui::SliderFloat("Camera Speed", &cameraSpeed, 0, 10);
         ImGui::Checkbox("Invert Colors", &invertEffect);
+        ImGui::Checkbox("Pixelate", &pixelateEffect);
+        ImGui::SliderInt("PixelSize", &pixelSize, 1, 100);
+        ImGui::Checkbox("Bloom", &bloom);
+        ImGui::SliderFloat("Bloom Threshold", &bloomThreshold, 0.0f, 2.0f);
+        ImGui::SliderFloat("Bloom Strength", &bloomStrength, 0.0f, 2.0f);
+        ImGui::SliderFloat("Blur Radius", &blurRadius, 1.0f, 100.0f);
         ImGui::End();
 
         processInput(window);
@@ -373,8 +521,9 @@ int main() {
             */
         }
 
-        glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
+        glBindFramebuffer(GL_FRAMEBUFFER, sceneFBO);
         glEnable(GL_DEPTH_TEST);
+        glDisable(GL_BLEND);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         // Scene stuff
@@ -387,9 +536,20 @@ int main() {
         {
             unsigned int currentShader = 0;
 
-            if (model == &superleggera) {
+            if (model == &superleggera)
+            {
                 glUseProgram(textureShaderProgram);
                 currentShader = textureShaderProgram;
+
+                glm::mat4 mvp = projection * view * model->getModelMatrix();
+                glUniformMatrix4fv(tex_mvp_loc, 1, GL_FALSE, glm::value_ptr(mvp));
+
+                glActiveTexture(GL_TEXTURE0);
+                glBindTexture(GL_TEXTURE_2D, texture.getId());
+                glUniform1i(tex_sampler_loc, 0);
+
+                model->render();
+                continue;
             }
             else if (model == &suzanne || model == &suzanne2) {
                 glUseProgram(lightShaderProgram);
@@ -434,22 +594,96 @@ int main() {
             {
                 glUniformMatrix4fv(mvpMatrixUniform, 1, GL_FALSE, glm::value_ptr(projection * view * model->getModelMatrix()));
             }
-            glUniformMatrix4fv(mvpMatrixUniform, 1, GL_FALSE, glm::value_ptr(projection * view * model->getModelMatrix()));
             model->render();
         }
 
-        glBindFramebuffer(GL_FRAMEBUFFER, 0); // 2️⃣ switch to default framebuffer
-        glDisable(GL_DEPTH_TEST);             // 3️⃣ depth not needed for full-screen quad
+        glEnable(GL_BLEND);
+
+        // Bloom
+        if (bloom) {
+            // Bright Extraction
+            // Bright-pass extraction
+            glBindFramebuffer(GL_FRAMEBUFFER, bloomFBO1);
+            glDisable(GL_DEPTH_TEST);
+            glClear(GL_COLOR_BUFFER_BIT);
+
+            glUseProgram(bloomExtractProgram);
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, sceneColor);
+            glUniform1i(glGetUniformLocation(bloomExtractProgram, "scene"), 0);
+            glUniform1f(glGetUniformLocation(bloomExtractProgram, "threshold"), bloomThreshold);
+            screenQuadMesh.render();
+
+            // Blur ping-pong
+            bool horizontal = true;
+            bool first = true;
+            int blurPasses = 10;
+
+            GLint horizontalLoc = glGetUniformLocation(blurProgram, "horizontal");
+            GLint blurRadiusLoc = glGetUniformLocation(blurProgram, "blurRadius");
+
+            for (int i = 0; i < blurPasses; i++) {
+                glBindFramebuffer(GL_FRAMEBUFFER, blurFBO[horizontal]);
+                glUseProgram(blurProgram);
+                glUniform1i(horizontalLoc, horizontal);
+                glUniform1f(blurRadiusLoc, 1.0f); // adjust for stronger blur
+
+                glActiveTexture(GL_TEXTURE0);
+                glBindTexture(GL_TEXTURE_2D, first ? bloomColor : blurColor[!horizontal]);
+                glUniform1i(glGetUniformLocation(blurProgram, "image"), 0);
+
+                screenQuadMesh.render();
+
+                horizontal = !horizontal;
+                if (first) first = false;
+            }
+
+            // Combine scene + bloom
+            glBindFramebuffer(GL_FRAMEBUFFER, postFBO);
+            glClear(GL_COLOR_BUFFER_BIT);
+            glUseProgram(bloomCombineProgram);
+
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, sceneColor);
+            glUniform1i(glGetUniformLocation(bloomCombineProgram, "scene"), 0);
+
+            glActiveTexture(GL_TEXTURE1);
+            glBindTexture(GL_TEXTURE_2D, blurColor[!horizontal]); // last blurred result
+            glUniform1i(glGetUniformLocation(bloomCombineProgram, "bloomBlur"), 1);
+            glUniform1f(glGetUniformLocation(bloomCombineProgram, "bloomStrength"), bloomStrength);
+
+            screenQuadMesh.render();
+        }
+        else {
+            glBindFramebuffer(GL_READ_FRAMEBUFFER, sceneFBO);
+            glBindFramebuffer(GL_DRAW_FRAMEBUFFER, postFBO);
+            glBlitFramebuffer(0,0,g_width,g_height,0,0,g_width,g_height,GL_COLOR_BUFFER_BIT, GL_NEAREST);
+        }
+
+        // Invert Colors
+        glBindFramebuffer(GL_FRAMEBUFFER, postFBO2); // write to new FBO
+        glDisable(GL_DEPTH_TEST);
         glClear(GL_COLOR_BUFFER_BIT);
 
-        // 4️⃣ Bind FBO color texture
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, textureColorbuffer);
         glUseProgram(invertProgram);
-        glUniform1i(texture0Uniform, 0);
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, postColor); // read old postColor
+        glUniform1i(glGetUniformLocation(invertProgram, "screenTexture"), 0);
         glUniform1i(glGetUniformLocation(invertProgram, "invertColors"), invertEffect ? 1 : 0);
 
-        // 5️⃣ Render screen quad
+        screenQuadMesh.render();
+        // Pixelate
+        glBindFramebuffer(GL_FRAMEBUFFER, 0); // screen
+        glClear(GL_COLOR_BUFFER_BIT);
+
+        glUseProgram(pixelateProgram);
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, postColor2); // read from invert result
+        glUniform1i(glGetUniformLocation(pixelateProgram, "screenTexture"), 0);
+        glUniform1i(glGetUniformLocation(pixelateProgram, "pixelate"), pixelateEffect ? 1 : 0);
+        glUniform1i(glGetUniformLocation(pixelateProgram, "pixelSize"), pixelSize);
+        glUniform2f(glGetUniformLocation(pixelateProgram, "screenSize"), g_width, g_height);
+
         screenQuadMesh.render();
 
         ImGui::Render();
@@ -485,11 +719,24 @@ int main() {
     glDeleteProgram(textureShaderProgram);
     glDeleteProgram(modelShaderProgram);
     glDeleteProgram(invertProgram);
+    glDeleteProgram(pixelateProgram);
+    glDeleteProgram(bloomExtractProgram);
+    glDeleteProgram(blurProgram);
+    glDeleteProgram(bloomCombineProgram);
 
     // cleanup framebuffer resources
-    glDeleteFramebuffers(1, &framebuffer);
-    glDeleteTextures(1, &textureColorbuffer);
-    glDeleteRenderbuffers(1, &rbo);
+    glDeleteFramebuffers(1, &sceneFBO);
+    glDeleteTextures(1, &sceneColor);
+    glDeleteRenderbuffers(1, &sceneRBO);
+
+    glDeleteFramebuffers(1, &bloomFBO1);
+    glDeleteTextures(1, &bloomColor);
+
+    glDeleteFramebuffers(2, blurFBO);
+    glDeleteTextures(2, blurColor);
+
+    glDeleteFramebuffers(1, &postFBO);
+    glDeleteTextures(1, &postColor);
 
     // cleanup imgui
     ImGui_ImplOpenGL3_Shutdown();

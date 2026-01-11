@@ -42,5 +42,5 @@ void main()
 
     vec3 col = diffuse + ambient + specular;
 
-    FragColor = vec4(col, diffuseTex.a);
+    FragColor = vec4(col, 1);
 }
