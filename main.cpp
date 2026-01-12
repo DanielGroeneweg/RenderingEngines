@@ -536,13 +536,13 @@ int main() {
         ImGui::SliderFloat("Ambient Strength", &ambientStrength, 0, 1);
         ImGui::SliderFloat("Specular Strength", &specularStrength, 0, 1);
         ImGui::SliderFloat("Camera Speed", &cameraSpeed, 0, 10);
+        ImGui::Checkbox("Bloom", &bloom);
+        if (bloom) ImGui::SliderFloat("Bloom Threshold", &bloomThreshold, 0.0f, 2.0f);
+        if (bloom) ImGui::SliderFloat("Bloom Strength", &bloomStrength, 0.0f, 2.0f);
+        if (bloom) ImGui::SliderFloat("Blur Radius", &blurRadius, 1.0f, 100.0f);
         ImGui::Checkbox("Invert Colors", &invertEffect);
         ImGui::Checkbox("Pixelate", &pixelateEffect);
-        ImGui::SliderInt("PixelSize", &pixelSize, 1, 100);
-        ImGui::Checkbox("Bloom", &bloom);
-        ImGui::SliderFloat("Bloom Threshold", &bloomThreshold, 0.0f, 2.0f);
-        ImGui::SliderFloat("Bloom Strength", &bloomStrength, 0.0f, 2.0f);
-        ImGui::SliderFloat("Blur Radius", &blurRadius, 1.0f, 100.0f);
+        if (pixelateEffect) ImGui::SliderInt("PixelSize", &pixelSize, 1, 100);
         ImGui::SliderFloat("Hue Shift", &hueShift, 0.0f, 360.0f);
         ImGui::End();
 
