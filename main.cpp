@@ -528,22 +528,28 @@ int main() {
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
         ImGui::Begin("Raw Engine v2");
-        //ImGui::Text("Hello :)");
-        ImGui::SliderFloat3("Light color", &lightColor[0],0,1);
-        ImGui::SliderFloat("Light Strength", &lightStrength, 0, 10);
-        ImGui::SliderFloat3("Light Position", &lightPos[0],-10, 10);
-        ImGui::SliderFloat3("Ambient Color", &ambientColor[0],0,1);
-        ImGui::SliderFloat("Ambient Strength", &ambientStrength, 0, 1);
-        ImGui::SliderFloat("Specular Strength", &specularStrength, 0, 1);
-        ImGui::SliderFloat("Camera Speed", &cameraSpeed, 0, 10);
-        ImGui::Checkbox("Bloom", &bloom);
-        if (bloom) ImGui::SliderFloat("Bloom Threshold", &bloomThreshold, 0.0f, 2.0f);
-        if (bloom) ImGui::SliderFloat("Bloom Strength", &bloomStrength, 0.0f, 2.0f);
-        if (bloom) ImGui::SliderFloat("Blur Radius", &blurRadius, 1.0f, 100.0f);
-        ImGui::Checkbox("Invert Colors", &invertEffect);
-        ImGui::Checkbox("Pixelate", &pixelateEffect);
-        if (pixelateEffect) ImGui::SliderInt("PixelSize", &pixelSize, 1, 100);
-        ImGui::SliderFloat("Hue Shift", &hueShift, 0.0f, 360.0f);
+        if (ImGui::CollapsingHeader("Lighting", ImGuiTreeNodeFlags_DefaultOpen)) {
+            ImGui::SliderFloat3("Light color", &lightColor[0],0,1);
+            ImGui::SliderFloat("Light Strength", &lightStrength, 0, 10);
+            ImGui::SliderFloat3("Light Position", &lightPos[0],-10, 10);
+            ImGui::SliderFloat3("Ambient Color", &ambientColor[0],0,1);
+            ImGui::SliderFloat("Ambient Strength", &ambientStrength, 0, 1);
+            ImGui::SliderFloat("Specular Strength", &specularStrength, 0, 1);
+        }
+
+        if (ImGui::CollapsingHeader("Camera", ImGuiTreeNodeFlags_DefaultOpen)) {
+            ImGui::SliderFloat("Camera Speed", &cameraSpeed, 0, 10);
+        }
+        if (ImGui::CollapsingHeader("Post Processing", ImGuiTreeNodeFlags_DefaultOpen)) {
+            ImGui::Checkbox("Bloom", &bloom);
+            if (bloom) ImGui::SliderFloat("Bloom Threshold", &bloomThreshold, 0.0f, 2.0f);
+            if (bloom) ImGui::SliderFloat("Bloom Strength", &bloomStrength, 0.0f, 2.0f);
+            if (bloom) ImGui::SliderFloat("Blur Radius", &blurRadius, 1.0f, 100.0f);
+            ImGui::Checkbox("Invert Colors", &invertEffect);
+            ImGui::Checkbox("Pixelate", &pixelateEffect);
+            if (pixelateEffect) ImGui::SliderInt("PixelSize", &pixelSize, 1, 100);
+            ImGui::SliderFloat("Hue Shift", &hueShift, 0.0f, 360.0f);
+        }
         ImGui::End();
 
         processInput(window);
