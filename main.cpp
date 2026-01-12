@@ -144,6 +144,8 @@ unsigned int blurColor[2];
 
 int width = g_width;
 int height = g_height;
+int oldWidth = g_width;
+int oldHeight = g_width;
 
 void DestroyFBOs() {
     // cleanup framebuffer resources
@@ -507,10 +509,19 @@ int main() {
     float blurRadius = 1.0f;
     float hueShift = 0.0f;
 
+    CreateFBOs();
+
     while (!glfwWindowShouldClose(window)) {
-        DestroyFBOs();
-        CreateFBOs();
-        
+        width = g_width;
+        height = g_height;
+        if (width != oldWidth || height != oldHeight) {
+            DestroyFBOs();
+            CreateFBOs();
+            oldWidth = g_width;
+            oldHeight = g_height;
+            printf("Resize!\n");
+        }
+
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         ImGui_ImplOpenGL3_NewFrame();
