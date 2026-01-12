@@ -121,6 +121,162 @@ GLuint generateShader(const std::string &shaderPath, GLuint shaderType) {
     return shader;
 }
 
+//framebuffers
+unsigned int sceneFBO;
+unsigned int sceneColor;
+unsigned int sceneRBO;
+
+unsigned int postFBO;
+unsigned int postColor;
+
+unsigned int postFBO2;
+unsigned int postColor2;
+
+unsigned int postFBO3;
+unsigned int postColor3;
+
+// Bloom
+unsigned int bloomFBO1;
+unsigned int bloomColor;
+
+unsigned int blurFBO[2];
+unsigned int blurColor[2];
+
+int width = g_width;
+int height = g_height;
+
+void DestroyFBOs() {
+    // cleanup framebuffer resources
+    glDeleteFramebuffers(1, &sceneFBO);
+    glDeleteTextures(1, &sceneColor);
+    glDeleteRenderbuffers(1, &sceneRBO);
+
+    glDeleteFramebuffers(1, &bloomFBO1);
+    glDeleteTextures(1, &bloomColor);
+
+    glDeleteFramebuffers(2, blurFBO);
+    glDeleteTextures(2, blurColor);
+
+    glDeleteFramebuffers(1, &postFBO);
+    glDeleteTextures(1, &postColor);
+
+    glDeleteFramebuffers(1, &postFBO2);
+    glDeleteTextures(1, &postColor2);
+
+    glDeleteFramebuffers(1, &postFBO3);
+    glDeleteTextures(1, &postColor3);
+}
+
+void CreateFBOs() {
+    width = g_width;
+    height = g_height;
+
+    // Scene framebuffer
+    glGenFramebuffers(1, &sceneFBO);
+    glBindFramebuffer(GL_FRAMEBUFFER, sceneFBO);
+
+    glGenTextures(1, &sceneColor);
+    glBindTexture(GL_TEXTURE_2D, sceneColor);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F,
+                 width, height, 0, GL_RGBA, GL_FLOAT, nullptr);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
+                           GL_TEXTURE_2D, sceneColor, 0);
+
+    // Depth + stencil
+    glGenRenderbuffers(1, &sceneRBO);
+    glBindRenderbuffer(GL_RENDERBUFFER, sceneRBO);
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8,
+                          width, height);
+    glFramebufferRenderbuffer(GL_FRAMEBUFFER,
+                              GL_DEPTH_STENCIL_ATTACHMENT,
+                              GL_RENDERBUFFER, sceneRBO);
+
+    if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+        std::cout << "ERROR:: Scene framebuffer incomplete\n";
+
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+    // Bright-pass framebuffer
+    glGenFramebuffers(1, &bloomFBO1);
+    glBindFramebuffer(GL_FRAMEBUFFER, bloomFBO1);
+
+    glGenTextures(1, &bloomColor);
+    glBindTexture(GL_TEXTURE_2D, bloomColor);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F,
+                 width, height, 0, GL_RGBA, GL_FLOAT, nullptr);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
+                           GL_TEXTURE_2D, bloomColor, 0);
+
+    if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+        std::cout << "ERROR:: Bloom framebuffer incomplete\n";
+
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+    // Blur ping-pong buffers
+    glGenFramebuffers(2, blurFBO);
+    glGenTextures(2, blurColor);
+
+    for (int i = 0; i < 2; i++)
+    {
+        glBindFramebuffer(GL_FRAMEBUFFER, blurFBO[i]);
+
+        glBindTexture(GL_TEXTURE_2D, blurColor[i]);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F,
+                     width, height, 0, GL_RGBA, GL_FLOAT, nullptr);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
+                               GL_TEXTURE_2D, blurColor[i], 0);
+
+        if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+            std::cout << "ERROR:: Blur framebuffer " << i << " incomplete\n";
+    }
+
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+    // Post-process framebuffer
+    glGenFramebuffers(1, &postFBO);
+    glBindFramebuffer(GL_FRAMEBUFFER, postFBO);
+
+    glGenTextures(1, &postColor);
+    glBindTexture(GL_TEXTURE_2D, postColor);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F,
+                 width, height, 0, GL_RGBA, GL_FLOAT, nullptr);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
+                           GL_TEXTURE_2D, postColor, 0);
+
+    if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+        std::cout << "ERROR:: Post-process framebuffer incomplete\n";
+
+    glGenFramebuffers(1, &postFBO2);
+    glBindFramebuffer(GL_FRAMEBUFFER, postFBO2);
+
+    glGenTextures(1, &postColor2);
+    glBindTexture(GL_TEXTURE_2D, postColor2);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, width, height, 0, GL_RGBA, GL_FLOAT, nullptr);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, postColor2, 0);
+
+    glGenFramebuffers(1, &postFBO3);
+    glBindFramebuffer(GL_FRAMEBUFFER, postFBO3);
+
+    glGenTextures(1, &postColor3);
+    glBindTexture(GL_TEXTURE_2D, postColor3);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, width, height, 0, GL_RGBA, GL_FLOAT, nullptr);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, postColor3, 0);
+
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+}
+
 int main() {
     glfwInit();
     glfwWindowHint(GLFW_SAMPLES, 4);
@@ -154,143 +310,6 @@ int main() {
     //Setup platforms
     ImGui_ImplGlfw_InitForOpenGL(window, true);
     ImGui_ImplOpenGL3_Init("#version 400");
-
-    glEnable(GL_DEPTH_TEST);
-    glFrontFace(GL_CCW);
-    glEnable(GL_CULL_FACE);
-    glCullFace(GL_BACK);
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-
-    //framebuffers
-    unsigned int sceneFBO;
-    unsigned int sceneColor;
-    unsigned int sceneRBO;
-
-    unsigned int postFBO;
-    unsigned int postColor;
-
-    unsigned int postFBO2;
-    unsigned int postColor2;
-
-    unsigned int postFBO3;
-    unsigned int postColor3;
-
-    // Bloom
-    unsigned int bloomFBO1;
-    unsigned int bloomColor;
-
-    unsigned int blurFBO[2];
-    unsigned int blurColor[2];
-
-    int width = g_width;
-    int height = g_height;
-    {
-        // Scene framebuffer
-        glGenFramebuffers(1, &sceneFBO);
-        glBindFramebuffer(GL_FRAMEBUFFER, sceneFBO);
-
-        glGenTextures(1, &sceneColor);
-        glBindTexture(GL_TEXTURE_2D, sceneColor);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F,
-                     width, height, 0, GL_RGBA, GL_FLOAT, nullptr);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
-                               GL_TEXTURE_2D, sceneColor, 0);
-
-        // Depth + stencil
-        glGenRenderbuffers(1, &sceneRBO);
-        glBindRenderbuffer(GL_RENDERBUFFER, sceneRBO);
-        glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8,
-                              width, height);
-        glFramebufferRenderbuffer(GL_FRAMEBUFFER,
-                                  GL_DEPTH_STENCIL_ATTACHMENT,
-                                  GL_RENDERBUFFER, sceneRBO);
-
-        if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
-            std::cout << "ERROR:: Scene framebuffer incomplete\n";
-
-        glBindFramebuffer(GL_FRAMEBUFFER, 0);
-
-        // Bright-pass framebuffer
-        glGenFramebuffers(1, &bloomFBO1);
-        glBindFramebuffer(GL_FRAMEBUFFER, bloomFBO1);
-
-        glGenTextures(1, &bloomColor);
-        glBindTexture(GL_TEXTURE_2D, bloomColor);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F,
-                     width, height, 0, GL_RGBA, GL_FLOAT, nullptr);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
-                               GL_TEXTURE_2D, bloomColor, 0);
-
-        if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
-            std::cout << "ERROR:: Bloom framebuffer incomplete\n";
-
-        glBindFramebuffer(GL_FRAMEBUFFER, 0);
-
-        // Blur ping-pong buffers
-        glGenFramebuffers(2, blurFBO);
-        glGenTextures(2, blurColor);
-
-        for (int i = 0; i < 2; i++)
-        {
-            glBindFramebuffer(GL_FRAMEBUFFER, blurFBO[i]);
-
-            glBindTexture(GL_TEXTURE_2D, blurColor[i]);
-            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F,
-                         width, height, 0, GL_RGBA, GL_FLOAT, nullptr);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-            glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
-                                   GL_TEXTURE_2D, blurColor[i], 0);
-
-            if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
-                std::cout << "ERROR:: Blur framebuffer " << i << " incomplete\n";
-        }
-
-        glBindFramebuffer(GL_FRAMEBUFFER, 0);
-
-        // Post-process framebuffer
-        glGenFramebuffers(1, &postFBO);
-        glBindFramebuffer(GL_FRAMEBUFFER, postFBO);
-
-        glGenTextures(1, &postColor);
-        glBindTexture(GL_TEXTURE_2D, postColor);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F,
-                     width, height, 0, GL_RGBA, GL_FLOAT, nullptr);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
-                               GL_TEXTURE_2D, postColor, 0);
-
-        if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
-            std::cout << "ERROR:: Post-process framebuffer incomplete\n";
-
-        glGenFramebuffers(1, &postFBO2);
-        glBindFramebuffer(GL_FRAMEBUFFER, postFBO2);
-
-        glGenTextures(1, &postColor2);
-        glBindTexture(GL_TEXTURE_2D, postColor2);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, width, height, 0, GL_RGBA, GL_FLOAT, nullptr);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, postColor2, 0);
-
-        glGenFramebuffers(1, &postFBO3);
-        glBindFramebuffer(GL_FRAMEBUFFER, postFBO3);
-
-        glGenTextures(1, &postColor3);
-        glBindTexture(GL_TEXTURE_2D, postColor3);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, width, height, 0, GL_RGBA, GL_FLOAT, nullptr);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, postColor3, 0);
-
-        glBindFramebuffer(GL_FRAMEBUFFER, 0);
-    }
 
     const GLuint modelVertexShader = generateShader("shaders/modelVertex.vs", GL_VERTEX_SHADER);
     const GLuint fragmentShader = generateShader("shaders/fragment.fs", GL_FRAGMENT_SHADER);
@@ -489,6 +508,9 @@ int main() {
     float hueShift = 0.0f;
 
     while (!glfwWindowShouldClose(window)) {
+        DestroyFBOs();
+        CreateFBOs();
+        
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         ImGui_ImplOpenGL3_NewFrame();
