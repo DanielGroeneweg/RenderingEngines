@@ -173,6 +173,9 @@ int main() {
     unsigned int postFBO2;
     unsigned int postColor2;
 
+    unsigned int postFBO3;
+    unsigned int postColor3;
+
     // Bloom
     unsigned int bloomFBO1;
     unsigned int bloomColor;
@@ -276,6 +279,16 @@ int main() {
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
         glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, postColor2, 0);
 
+        glGenFramebuffers(1, &postFBO3);
+        glBindFramebuffer(GL_FRAMEBUFFER, postFBO3);
+
+        glGenTextures(1, &postColor3);
+        glBindTexture(GL_TEXTURE_2D, postColor3);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, width, height, 0, GL_RGBA, GL_FLOAT, nullptr);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, postColor3, 0);
+
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
     }
 
@@ -291,6 +304,7 @@ int main() {
     const GLuint bloomExtractShader = generateShader("shaders/bloomExtract.fs", GL_FRAGMENT_SHADER);
     const GLuint blurShader = generateShader("shaders/blur.fs", GL_FRAGMENT_SHADER);
     const GLuint bloomCombineShader = generateShader("shaders/bloomCombine.fs", GL_FRAGMENT_SHADER);
+    const GLuint hueShiftShader = generateShader("shaders/hueShift.fs", GL_FRAGMENT_SHADER);
 
     int success;
     char infoLog[512];
@@ -302,6 +316,7 @@ int main() {
     const unsigned int bloomExtractProgram = glCreateProgram();
     const unsigned int blurProgram = glCreateProgram();
     const unsigned int bloomCombineProgram = glCreateProgram();
+    const unsigned int hueShiftProgram = glCreateProgram();
     // shader loading happens here:
     {
         glAttachShader(modelShaderProgram, modelVertexShader);
@@ -375,6 +390,15 @@ int main() {
             glGetProgramInfoLog(bloomCombineProgram, 512, NULL, infoLog);
             printf("Error! Making Shader Program: %s\n", infoLog);
         }
+
+        glAttachShader(hueShiftProgram, vertexShader);
+        glAttachShader(hueShiftProgram, hueShiftShader);
+        glLinkProgram(hueShiftProgram);
+        glGetProgramiv(hueShiftProgram, GL_LINK_STATUS, &success);
+        if (!success) {
+            glGetProgramInfoLog(hueShiftProgram, 512, NULL, infoLog);
+            printf("Error! Making Shader Program: %s\n", infoLog);
+        }
     }
 
     GLint lightModelLoc = glGetUniformLocation(lightShaderProgram, "model");
@@ -395,6 +419,7 @@ int main() {
     glDeleteShader(bloomExtractShader);
     glDeleteShader(bloomCombineShader);
     glDeleteShader(blurShader);
+    glDeleteShader(hueShiftShader);
 
     core::Mesh quad = core::Mesh::generateQuad();
     core::Model quadModel({quad});
@@ -461,6 +486,7 @@ int main() {
     float bloomThreshold = 1.0f;
     float bloomStrength = 0.8f;
     float blurRadius = 1.0f;
+    float hueShift = 0.0f;
 
     while (!glfwWindowShouldClose(window)) {
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -484,6 +510,7 @@ int main() {
         ImGui::SliderFloat("Bloom Threshold", &bloomThreshold, 0.0f, 2.0f);
         ImGui::SliderFloat("Bloom Strength", &bloomStrength, 0.0f, 2.0f);
         ImGui::SliderFloat("Blur Radius", &blurRadius, 1.0f, 100.0f);
+        ImGui::SliderFloat("Hue Shift", &hueShift, 0.0f, 360.0f);
         ImGui::End();
 
         processInput(window);
@@ -661,30 +688,49 @@ int main() {
         }
 
         // Invert Colors
-        glBindFramebuffer(GL_FRAMEBUFFER, postFBO2); // write to new FBO
-        glDisable(GL_DEPTH_TEST);
-        glClear(GL_COLOR_BUFFER_BIT);
+        {
+            glBindFramebuffer(GL_FRAMEBUFFER, postFBO2); // write to new FBO
+            glDisable(GL_DEPTH_TEST);
+            glClear(GL_COLOR_BUFFER_BIT);
 
-        glUseProgram(invertProgram);
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, postColor); // read old postColor
-        glUniform1i(glGetUniformLocation(invertProgram, "screenTexture"), 0);
-        glUniform1i(glGetUniformLocation(invertProgram, "invertColors"), invertEffect ? 1 : 0);
+            glUseProgram(invertProgram);
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, postColor); // read old postColor
+            glUniform1i(glGetUniformLocation(invertProgram, "screenTexture"), 0);
+            glUniform1i(glGetUniformLocation(invertProgram, "invertColors"), invertEffect ? 1 : 0);
 
-        screenQuadMesh.render();
+            screenQuadMesh.render();
+        }
+
         // Pixelate
-        glBindFramebuffer(GL_FRAMEBUFFER, 0); // screen
-        glClear(GL_COLOR_BUFFER_BIT);
+        {
+            glBindFramebuffer(GL_FRAMEBUFFER, postFBO3); // write to new FBO
+            glClear(GL_COLOR_BUFFER_BIT);
 
-        glUseProgram(pixelateProgram);
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, postColor2); // read from invert result
-        glUniform1i(glGetUniformLocation(pixelateProgram, "screenTexture"), 0);
-        glUniform1i(glGetUniformLocation(pixelateProgram, "pixelate"), pixelateEffect ? 1 : 0);
-        glUniform1i(glGetUniformLocation(pixelateProgram, "pixelSize"), pixelSize);
-        glUniform2f(glGetUniformLocation(pixelateProgram, "screenSize"), g_width, g_height);
+            glUseProgram(pixelateProgram);
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, postColor2); // read from invert result
+            glUniform1i(glGetUniformLocation(pixelateProgram, "screenTexture"), 0);
+            glUniform1i(glGetUniformLocation(pixelateProgram, "pixelate"), pixelateEffect ? 1 : 0);
+            glUniform1i(glGetUniformLocation(pixelateProgram, "pixelSize"), pixelSize);
+            glUniform2f(glGetUniformLocation(pixelateProgram, "screenSize"), g_width, g_height);
 
-        screenQuadMesh.render();
+            screenQuadMesh.render();
+        }
+
+        // Hue Shift
+        {
+            glBindFramebuffer(GL_FRAMEBUFFER, 0); // screen
+            glClear(GL_COLOR_BUFFER_BIT);
+
+            glUseProgram(hueShiftProgram);
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, postColor3); // read from Pixelate result
+            glUniform1i(glGetUniformLocation(hueShiftProgram, "text"), 0);
+            glUniform1f(glGetUniformLocation(hueShiftProgram, "shift"), hueShift * glm::pi<float>() /  180.0f);
+
+            screenQuadMesh.render();
+        }
 
         ImGui::Render();
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
@@ -737,6 +783,12 @@ int main() {
 
     glDeleteFramebuffers(1, &postFBO);
     glDeleteTextures(1, &postColor);
+
+    glDeleteFramebuffers(1, &postFBO2);
+    glDeleteTextures(1, &postColor2);
+
+    glDeleteFramebuffers(1, &postFBO3);
+    glDeleteTextures(1, &postColor3);
 
     // cleanup imgui
     ImGui_ImplOpenGL3_Shutdown();
