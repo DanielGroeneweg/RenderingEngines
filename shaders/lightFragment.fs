@@ -15,6 +15,7 @@ uniform vec3 lightColor; // rgb
 uniform float lightStrength;
 uniform float specularStrength;
 uniform vec3 cameraPos;
+uniform vec3 baseColor;
 
 void main()
 {
@@ -24,7 +25,7 @@ void main()
     float NdotL = max(dot(normal, direction), 0.0);
 
     //vec4 diffuseTex = texture(text, uv);
-    vec4 diffuseTex = vec4(1,1,1,1);
+    vec4 diffuseTex = vec4(1,1,1,1) * vec4(baseColor.rgb, 1);
 
     vec3 diffuse = diffuseTex.rgb * lightColor * NdotL;
 

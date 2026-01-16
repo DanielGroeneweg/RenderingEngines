@@ -21,6 +21,9 @@ set(IMGUI_SOURCES
         core/Scene.h
         core/scene.cpp
         core/scene.h
+        core/AudioSystem.cpp
+        core/AudioSystem.h
+        core/AudioBackend.cpp
 )
 
 add_executable(RawEngine main.cpp
@@ -74,3 +77,6 @@ find_package(assimp CONFIG REQUIRED)
 target_link_libraries(RawEngine PRIVATE assimp::assimp)
 find_package(Stb REQUIRED)
 target_include_directories(RawEngine PRIVATE ${Stb_INCLUDE_DIR})
+target_include_directories(RawEngine SYSTEM PRIVATE
+        "C:/Program Files (x86)/Windows Kits/10/Include/10.0.22000.0/shared"
+)

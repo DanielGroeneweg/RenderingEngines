@@ -6,6 +6,9 @@
 #include <sstream>
 #include <algorithm>
 #include <iostream>
+#include <ranges>
+#include <miniaudio.h>
+#include "core/AudioSystem.h"
 
 #include "core/mesh.h"
 #include "core/assimpLoader.h"
@@ -313,6 +316,11 @@ int main() {
     ImGui_ImplGlfw_InitForOpenGL(window, true);
     ImGui_ImplOpenGL3_Init("#version 400");
 
+    AudioSystem audioSystem;
+    if (!audioSystem.Init()) {
+        std::cerr << "Failed to initialize audio system!\n";
+    }
+
     const GLuint modelVertexShader = generateShader("shaders/modelVertex.vs", GL_VERTEX_SHADER);
     const GLuint fragmentShader = generateShader("shaders/fragment.fs", GL_FRAGMENT_SHADER);
     const GLuint textureShader = generateShader("shaders/texture.fs", GL_FRAGMENT_SHADER);
@@ -443,15 +451,21 @@ int main() {
     glDeleteShader(hueShiftShader);
 
     core::Mesh quad = core::Mesh::generateQuad();
-    core::Model quadModel({quad});
+    core::Model quadModel({quad}, glm::vec3(1,1,1));
     quadModel.translate(glm::vec3(0,0,-2.5));
     quadModel.scale(glm::vec3(5, 5, 1));
 
     core::Mesh screenQuadMesh = core::Mesh::generateScreenQuad();
 
     core::Model suzanne = core::AssimpLoader::loadModel("models/nonormalmonkey.obj");
+    suzanne.SetBaseColor(glm::vec3(0.65f, 0.4f, 0.0f));
+    suzanne.SetName("Suzanne");
     core::Model suzanne2 = core::AssimpLoader::loadModel("models/nonormalmonkey.obj");
+    suzanne2.SetBaseColor(glm::vec3(1, 1, 0));
+    suzanne2.SetName("Suzanne");
     core::Model superleggera = core::AssimpLoader::loadModel("models/superleggera.gltf");
+    superleggera.SetName("Superleggera");
+    superleggera.SetBaseColor(glm::vec3(1, 0, 0));
     superleggera.translate(glm::vec3(-3, 2, 0));
     superleggera.scale(glm::vec3(3, 3, 3));
     core::Texture cmgtGatoTexture("textures/CMGaTo_crop.png");
@@ -508,6 +522,9 @@ int main() {
     float bloomStrength = 0.8f;
     float blurRadius = 1.0f;
     float hueShift = 0.0f;
+    bool disco = true;
+
+    bool musicPlaying = false;
 
     CreateFBOs();
 
@@ -523,6 +540,17 @@ int main() {
         }
 
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+        int shouldSwitch = SceneInput(window);
+        if (shouldSwitch == 1) {
+            sceneIndex++;
+            if (sceneIndex >= 2) sceneIndex = 0;
+
+            currentScene = sceneList[sceneIndex];
+            camera = currentScene->GetCamera();
+            view = camera->GetViewMatrix();
+            projection = camera->GetProjectionMatrix(g_width, g_height);
+        }
 
         ImGui_ImplOpenGL3_NewFrame();
         ImGui_ImplGlfw_NewFrame();
@@ -541,36 +569,65 @@ int main() {
             ImGui::SliderFloat("Camera Speed", &cameraSpeed, 0, 10);
         }
         if (ImGui::CollapsingHeader("Post Processing", ImGuiTreeNodeFlags_DefaultOpen)) {
-            ImGui::Checkbox("Bloom", &bloom);
-            if (bloom) ImGui::SliderFloat("Bloom Threshold", &bloomThreshold, 0.0f, 2.0f);
-            if (bloom) ImGui::SliderFloat("Bloom Strength", &bloomStrength, 0.0f, 2.0f);
-            if (bloom) ImGui::SliderFloat("Blur Radius", &blurRadius, 1.0f, 100.0f);
-            ImGui::Checkbox("Invert Colors", &invertEffect);
-            ImGui::Checkbox("Pixelate", &pixelateEffect);
-            if (pixelateEffect) ImGui::SliderInt("PixelSize", &pixelSize, 1, 100);
-            ImGui::SliderFloat("Hue Shift", &hueShift, 0.0f, 360.0f);
+            ImGui::Checkbox("Disco", &disco);
+            if (!disco) {
+                ImGui::Checkbox("Bloom", &bloom);
+                if (bloom) ImGui::SliderFloat("Bloom Threshold", &bloomThreshold, 0.0f, 2.0f);
+                if (bloom) ImGui::SliderFloat("Bloom Strength", &bloomStrength, 0.0f, 2.0f);
+                if (bloom) ImGui::SliderFloat("Blur Radius", &blurRadius, 1.0f, 100.0f);
+                ImGui::Checkbox("Invert Colors", &invertEffect);
+                ImGui::Checkbox("Pixelate", &pixelateEffect);
+                if (pixelateEffect) ImGui::SliderInt("PixelSize", &pixelSize, 1, 100);
+                ImGui::SliderFloat("Hue Shift", &hueShift, 0.0f, 360.0f);
+            }
+        }
+        ImGui::End();
+
+        if (disco) {
+            hueShift += 1;
+            if (hueShift == 361) hueShift = 0;
+            invertEffect = true;
+            if (!musicPlaying) {
+                audioSystem.PlayMusic("D:/Year 2/RenderingEngines/RenderingEnginesProject/Sounds/Music.mp3");
+                musicPlaying = true;
+            }
+        }
+
+        else {
+            if (musicPlaying) {
+                audioSystem.StopMusic();
+                musicPlaying = false;
+            }
+        }
+
+        ImGui::Begin("Models");
+        int i = 0;
+        for (core::Model* model : currentScene->GetObjects()) {
+            std::string name = model->GetName();
+            if (ImGui::CollapsingHeader(name.c_str(), ImGuiTreeNodeFlags_DefaultOpen)) {
+                glm::vec3 oldPos = model->GetTranslation();
+                glm::vec3 pos = oldPos;
+
+                ImGui::PushID(i);
+                ImGui::InputFloat3("Position", glm::value_ptr(pos));
+                ImGui::PopID();
+
+                if (oldPos != pos) {
+                    model->translate(pos - oldPos);
+                }
+            }
+            i++;
         }
         ImGui::End();
 
         processInput(window);
-
-        int shouldSwitch = SceneInput(window);
-        if (shouldSwitch == 1) {
-            sceneIndex++;
-            if (sceneIndex >= 2) sceneIndex = 0;
-
-            currentScene = sceneList[sceneIndex];
-            camera = currentScene->GetCamera();
-            view = camera->GetViewMatrix();
-            projection = camera->GetProjectionMatrix(g_width, g_height);
-        }
 
         glUseProgram(lightShaderProgram);
 
         glUniformMatrix4fv(lightViewLoc, 1, GL_FALSE, glm::value_ptr(view));
         glUniformMatrix4fv(lightProjLoc, 1, GL_FALSE, glm::value_ptr(projection));
 
-        if (currentScene->GetSceneName() == "Basic Scene") suzanne.rotate(glm::vec3(0.0f, 1.0f, 0.0f), glm::radians(rotationStrength) * static_cast<float>(deltaTime));
+        if (currentScene->GetSceneName() == "Basic Scene") suzanne.rotate(glm::vec3(0.0f, 1.0f, 0.0f), glm::radians(rotationStrength * 100) * static_cast<float>(deltaTime));
 
         //glBindTexture(GL_TEXTURE_2D, texture.getId());
 
@@ -613,6 +670,7 @@ int main() {
                 glActiveTexture(GL_TEXTURE0);
                 glBindTexture(GL_TEXTURE_2D, texture.getId());
                 glUniform1i(tex_sampler_loc, 0);
+                glUniform3f(glGetUniformLocation(textureShaderProgram, "baseColor"), model->GetBaseColor().x, model->GetBaseColor().y, model->GetBaseColor().z);
 
                 model->render();
                 continue;
@@ -639,6 +697,8 @@ int main() {
                 glUniform1f(lightStrengthLoc, lightStrength);
                 glUniform1f(ambientLightStrengthLoc, ambientStrength);
                 glUniform1f(specularStrengthLocation, specularStrength);
+
+                glUniform3f(glGetUniformLocation(lightShaderProgram, "baseColor"), model->GetBaseColor().x, model->GetBaseColor().y, model->GetBaseColor().z);
             }
             else {
                 glUseProgram(modelShaderProgram);
@@ -833,6 +893,10 @@ int main() {
     ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplGlfw_Shutdown();
     ImGui::DestroyContext();
+
+    // Sound
+    audioSystem.StopMusic();
+    audioSystem.Shutdown();
 
     // terminate
     glfwTerminate();

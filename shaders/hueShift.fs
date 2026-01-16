@@ -8,6 +8,10 @@ uniform float shift;
 void main() {
     vec4 color = texture2D(text, uv);
 
+    // Move 3D 'Color Vector' so that it points up, moving the other axes with it using matrix
+    // Apply 2D rotation to the new up-pointing 'color vector'
+    // Invert the first matrix to go back to original RGB :)))
+
     const mat3 rgb2yiq = mat3(
         0.299,  0.587,  0.114,
         0.596, -0.275, -0.321,
