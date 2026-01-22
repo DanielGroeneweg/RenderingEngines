@@ -41,7 +41,16 @@ void main()
     float spec = pow(max(dot(viewDir, reflectDir), 0.0), 32);
     vec3 specular = lightColor * specularStrength * spec;
 
-    vec3 col = diffuse + ambient + specular;
+    float dist = length(lightPos - fPosWorld);
+
+    float c1 = 1;
+    float c2 = 0.5;
+    float c3 = 0.025;
+
+    vec3 attenuation = (diffuse + specular) / (c1 + (c2 * dist) + (c3 * (dist * dist)));
+
+    vec3 col = ambient + attenuation;
 
     FragColor = vec4(col, 1);
+    //FragColor = vec4(attenuation, attenuation, attenuation, 1);
 }

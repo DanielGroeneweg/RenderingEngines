@@ -522,7 +522,7 @@ int main() {
     float bloomStrength = 0.8f;
     float blurRadius = 1.0f;
     float hueShift = 0.0f;
-    bool disco = true;
+    bool disco = false;
 
     bool musicPlaying = false;
 
@@ -559,7 +559,7 @@ int main() {
         if (ImGui::CollapsingHeader("Lighting", ImGuiTreeNodeFlags_DefaultOpen)) {
             ImGui::SliderFloat3("Light color", &lightColor[0],0,1);
             ImGui::SliderFloat("Light Strength", &lightStrength, 0, 10);
-            ImGui::SliderFloat3("Light Position", &lightPos[0],-10, 10);
+            ImGui::SliderFloat3("Light Position", &lightPos[0],-100, 100);
             ImGui::SliderFloat3("Ambient Color", &ambientColor[0],0,1);
             ImGui::SliderFloat("Ambient Strength", &ambientStrength, 0, 1);
             ImGui::SliderFloat("Specular Strength", &specularStrength, 0, 1);
@@ -859,6 +859,7 @@ int main() {
     for (Scene* scene : sceneList) {
         delete scene;
     }
+
     // cleanup shaders
     glDeleteProgram(lightShaderProgram);
     glDeleteProgram(textureShaderProgram);
