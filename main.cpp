@@ -508,7 +508,7 @@ int main() {
 
     // IMGui:
     glm::vec3 lightColor = glm::vec3(1.0f, 1.0f, 1.0f);
-    glm::vec3 lightPos = glm::vec3(3.0f, 4.0f, 2.0f);
+    glm::vec3 lightPos = glm::vec3(2.0f, 1.0f, 2.0f);
     glm::vec3 ambientColor = glm::vec3(0.2f, 0.2f, 0.2f);
     float lightStrength = 5.0f;
     float ambientStrength = 0.1f;
@@ -559,7 +559,7 @@ int main() {
         if (ImGui::CollapsingHeader("Lighting", ImGuiTreeNodeFlags_DefaultOpen)) {
             ImGui::SliderFloat3("Light color", &lightColor[0],0,1);
             ImGui::SliderFloat("Light Strength", &lightStrength, 0, 10);
-            ImGui::SliderFloat3("Light Position", &lightPos[0],-100, 100);
+            ImGui::SliderFloat3("Light Position", &lightPos[0],-10, 10);
             ImGui::SliderFloat3("Ambient Color", &ambientColor[0],0,1);
             ImGui::SliderFloat("Ambient Strength", &ambientStrength, 0, 1);
             ImGui::SliderFloat("Specular Strength", &specularStrength, 0, 1);

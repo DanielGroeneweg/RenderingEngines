@@ -38,7 +38,7 @@ void main()
     vec3 viewDir = normalize(cameraPos - fPosWorld);
     vec3 reflectDir = reflect(-normalize(lightPos - fPosWorld), normal);
 
-    float spec = pow(max(dot(viewDir, reflectDir), 0.0), 32);
+    float spec = pow(max(dot(viewDir, reflectDir), 0.0), 2);
     vec3 specular = lightColor * specularStrength * spec;
 
     float dist = length(lightPos - fPosWorld);
@@ -52,5 +52,4 @@ void main()
     vec3 col = ambient + attenuation;
 
     FragColor = vec4(col, 1);
-    //FragColor = vec4(attenuation, attenuation, attenuation, 1);
 }
