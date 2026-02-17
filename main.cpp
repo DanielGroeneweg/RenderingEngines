@@ -9,7 +9,7 @@
 #include <ranges>
 #include <miniaudio.h>
 #include "core/AudioSystem.h"
-
+#include "core/CollisionDetection.h"
 #include "core/mesh.h"
 #include "core/assimpLoader.h"
 #include "core/texture.h"
@@ -460,6 +460,9 @@ int main() {
     core::Model suzanne = core::AssimpLoader::loadModel("models/nonormalmonkey.obj");
     suzanne.SetBaseColor(glm::vec3(0.65f, 0.4f, 0.0f));
     suzanne.SetName("Suzanne");
+    core::Model suzanneCopy = core::AssimpLoader::loadModel("models/nonormalmonkey.obj");
+    suzanne.SetBaseColor(glm::vec3(0.65f, 0.4f, 0.0f));
+    suzanne.SetName("SuzanneCopy");
     core::Model suzanne2 = core::AssimpLoader::loadModel("models/nonormalmonkey.obj");
     suzanne2.SetBaseColor(glm::vec3(1, 1, 0));
     suzanne2.SetName("Suzanne");
@@ -495,6 +498,7 @@ int main() {
 
     Scene* scene1 = new Scene("Basic Scene");
     scene1->AddObject(&suzanne);
+    scene1->AddObject(&suzanneCopy);
     sceneList.push_back(scene1);
 
     Scene* scene2 = new Scene("Motorcycle Scene");
@@ -627,7 +631,7 @@ int main() {
         glUniformMatrix4fv(lightViewLoc, 1, GL_FALSE, glm::value_ptr(view));
         glUniformMatrix4fv(lightProjLoc, 1, GL_FALSE, glm::value_ptr(projection));
 
-        if (currentScene->GetSceneName() == "Basic Scene") suzanne.rotate(glm::vec3(0.0f, 1.0f, 0.0f), glm::radians(rotationStrength * 100) * static_cast<float>(deltaTime));
+        if (currentScene->GetSceneName() == "Basic Scene") suzanne.rotate(glm::vec3(0.0f, 1.0f, 0.0f), glm::radians(rotationStrength * 10) * static_cast<float>(deltaTime));
 
         //glBindTexture(GL_TEXTURE_2D, texture.getId());
 
@@ -722,6 +726,8 @@ int main() {
             }
             model->render();
         }
+
+        CollisionDetection::FindCollisions(currentScene->GetObjects());
 
         glEnable(GL_BLEND);
 

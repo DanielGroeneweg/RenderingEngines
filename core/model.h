@@ -4,6 +4,7 @@
 #include <vector>
 #include <glm/ext/matrix_float4x4.hpp>
 #include "mesh.h"
+#include "Collider.h"
 
 namespace core {
     class Model {
@@ -13,8 +14,11 @@ namespace core {
         glm::vec3 baseColor;
         glm::vec3 translation;
         std::string modelName;
+        Collider collider;
     public:
-        Model(std::vector<core::Mesh> meshes, glm::vec3 color = glm::vec3(1,1,1), glm::vec3 translation = glm::vec3(0,0,0), std::string name = "model") : meshes(meshes), modelMatrix(1), baseColor(color), translation(translation), modelName(name) {}
+        Model(std::vector<core::Mesh> meshes, glm::vec3 color = glm::vec3(1,1,1), glm::vec3 translation = glm::vec3(0,0,0), std::string name = "model") : meshes(meshes), modelMatrix(1), baseColor(color), translation(translation), modelName(name), collider(meshes) {
+            collider.Update(modelMatrix);
+        }
 
         void render();
 
@@ -27,5 +31,7 @@ namespace core {
         const std::string GetName();
         void SetName(std::string name);
         glm::mat4 getModelMatrix() const;
+        Collider GetCollider();
+        std::vector<core::Mesh::Triangle> GetTriangles() const;
     };
 }

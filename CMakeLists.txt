@@ -24,6 +24,10 @@ set(IMGUI_SOURCES
         core/AudioSystem.cpp
         core/AudioSystem.h
         core/AudioBackend.cpp
+        core/CollisionDetection.cpp
+        core/CollisionDetection.h
+        core/Collider.cpp
+        core/Collider.h
 )
 
 add_executable(RawEngine main.cpp

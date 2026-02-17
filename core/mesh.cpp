@@ -92,4 +92,23 @@ namespace core {
         glBindVertexArray(VAO);
         glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(indices.size()), GL_UNSIGNED_INT, 0);
     }
+    const std::vector<Vertex>& Mesh::getVertices() const {
+        return vertices;
+    }
+    std::vector<Mesh::Triangle> Mesh::getTriangles() const {
+        std::vector<Triangle> tris;
+
+        for (size_t i = 0; i < indices.size(); i += 3)
+        {
+            Triangle t;
+            t.p0 = vertices[indices[i]].position;
+            t.p1 = vertices[indices[i+1]].position;
+            t.p2 = vertices[indices[i+2]].position;
+
+            tris.push_back(t);
+        }
+
+        return tris;
+    }
+
 }
